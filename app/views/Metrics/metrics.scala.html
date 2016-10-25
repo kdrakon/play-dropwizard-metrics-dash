@@ -1,0 +1,116 @@
+@import com.codahale.metrics._
+@(metrics: Metrics)
+
+@renderCardContent(name: String, colour: String, content: Html) = {
+  <div class="flex-item card @colour lighten-2 waves-effect z-depth-1">
+    <div class="card-content">
+      <span class="card-title truncate" title=@name>@name</span>
+      @content
+    </div>
+  </div>
+}
+
+@renderCounter(counter: Counter) = {
+  <h1>@counter.getCount()</h1>
+}
+
+@renderMeter(meter: Meter) = {
+  <h3>@meter.getCount()</h3>
+  <div style="font-size: 0.9em">
+    <ul>
+      <li><b>1m rate:</b> @meter.getOneMinuteRate() | <b>5m rate:</b> @meter.getFiveMinuteRate() | <b>15m rate:</b> @meter.getFifteenMinuteRate()</li>
+    </ul>
+  </div>
+}
+
+@renderSnapshot(snapshot: Snapshot) = {
+  <div style="font-size: 0.8em">
+    <ul>
+      <li><b>readings:</b> @snapshot.size()</li>
+      <li><b>min:</b> @snapshot.getMin() | <b>median:</b> @snapshot.getMedian() | <b>max:</b> @snapshot.getMax()</li>
+      <li><b>75%:</b> @snapshot.get75thPercentile() | <b>95%:</b> @snapshot.get95thPercentile() | <b>98%:</b> @snapshot.get98thPercentile()</li>
+      <li><b>99%:</b> @snapshot.get99thPercentile() | <b>99.9%:</b> @snapshot.get999thPercentile()</li>
+      <li><b>std dev:</b> @snapshot.getStdDev()</li>
+    </ul>
+  </div>
+  <svg id=@{"id_" + snapshot.hashCode()} class="svg-snapshot-chart" style="height:50%">
+
+  </svg>
+  <script type="text/javascript">
+    $("@{"#id_" + snapshot.hashCode()}").ready(function(){
+      var chart = nv.models.lineChart()
+                  .useInteractiveGuideline(true)
+                  .showLegend(false)
+                  .showYAxis(false)
+                  .showXAxis(false)
+
+      var values = [@snapshot.getValues().zipWithIndex.map({
+        case (y, x) => {
+          s"{x: $x, y: $y}"
+        }
+      }).mkString(",")]
+
+      var data = [{
+        'values': values,
+        'key': 'Reading',
+        'color': '#880e4f'
+      }]
+
+      d3.select("@{"#id_" + snapshot.hashCode()}")
+        .datum(data)
+        .call(chart);
+    })
+  </script>
+}
+
+@renderTimer(timer: Timer) = {
+  @renderSnapshot(timer.getSnapshot())
+}
+
+@renderHistogram(histogram: Histogram) = {
+  @renderSnapshot(histogram.getSnapshot())
+}
+
+<html>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.7/css/materialize.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.7/js/materialize.min.js"></script>
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdn.rawgit.com/novus/nvd3/v1.8.1/build/nv.d3.css">
+  <script src="https://cdn.rawgit.com/novus/nvd3/v1.8.1/build/nv.d3.min.js"></script>
+
+  <style>
+    .flex-container {
+      display:flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-content: flex-start;
+      align-items: flex-start;
+    }
+
+    .flex-item {
+      width: 350px;
+      height: 350px;
+      margin: 0.5em;
+    }
+
+    .svg-snapshot-chart {
+      position: absolute;
+      bottom: 0em;
+      left: 0em;
+    }
+  </style>
+
+  <body>
+    <div class="flex-container">
+      @metrics.counters.map{case (name, counter) => @renderCardContent(name, "purple", renderCounter(counter))}
+      @metrics.timers.map{case (name, timer) => @renderCardContent(name, "pink", renderTimer(timer))}
+      @metrics.meters.map{case (name, meter) => @renderCardContent(name, "indigo", renderMeter(meter))}
+      @metrics.histograms.map{case (name, histogram) => @renderCardContent(name, "blue", renderHistogram(histogram))}
+    </div>
+  </body>
+
+</html>
